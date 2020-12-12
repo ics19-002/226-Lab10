@@ -3,40 +3,73 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-
+////////////////////////////////////////////////////////////////////////////
+//PURPOSE: Supposed to crawl a given webpage and list all links and sublinks
+//
+//ISSUES: Does not use MAX_DEPTH, going deeper within was broken during retooling
+////////////////////////////////////////////////////////////////////////////
 public class Crawler {
+    public static String baseUrl = "http://localhost"; //args[0];
+    //Takes in an ArrayList<String> of paths without the base url prepended and returns
+    //an ArrayList<URI> of the same paths converted into full URLs
+    public static ArrayList<URI> convertStringToFullURI(ArrayList<String> list){
+        ArrayList<URI> urls = new ArrayList<URI>();
+        for (String s : list) {
+            if (!visitedLinks.contains(baseUrl + s)){
+                urls.add(URI.create(baseUrl + s));
+            }
+
+        }
+
+        return urls;
+    }
+    public static ArrayList<String> links = new ArrayList<String>();
+    //Takes in a full html page and catches all the <a href ...> tags and returns an ArrayList<String>
+    //containing all of those paths for use within convertStringToFullURI()
+    public static ArrayList<String> getUrlsFromPage(String str) {
 
 
-    public static ArrayList<String> getUrlsFromPage(String str) throws Exception {
-        ArrayList<String> links = new ArrayList<String>();
 
-
-        Pattern check = Pattern.compile("(?m)<a href\\W\\\"([^\"]*)\">", Pattern.CASE_INSENSITIVE);
+        Pattern check = Pattern.compile("(?m)<a href\\W\"([^\"]*)\">", Pattern.CASE_INSENSITIVE);
         Matcher matcher = check.matcher(str);
         while(matcher.find()){
+
             links.add( matcher.group(1));
 
 
+
         }
+
+
         return links;
 
     }
     public static String html;
+    //Gets the full HTML body of the linked webpage
     public static void getHtmlbody(String htmlbody) {
+        getUrlsFromPage(htmlbody);
         html = htmlbody;
+
     }
 
-    public static ArrayList<String> startConnection(ArrayList<URI> urlList) throws Exception {
+
+    //Makes a connection to a webpage, from a given URI
+    public static void startConnection(URI uri) throws Exception {
+        System.out.println(visitedLinks.contains(uri));
+
+        ArrayList<URI> urlList = new ArrayList<>();
+        urlList.add(uri);
         List<HttpRequest> requests = urlList
                 .stream()
-                .map(url -> HttpRequest.newBuilder(url))
-                .map(reqBuilder -> reqBuilder.build())
+                .map(HttpRequest::newBuilder)
+                .map(HttpRequest.Builder::build)
                 .collect(Collectors.toList());
 
         HttpClient client = HttpClient.newHttpClient();
@@ -45,41 +78,33 @@ public class Crawler {
                 .map(request -> client
                         .sendAsync(request, HttpResponse.BodyHandlers.ofString())
                         .thenApply(HttpResponse::body)
-                        .thenAccept(str -> getHtmlbody(str))).toArray(CompletableFuture<?>[]::new);
+                        .thenAccept(Crawler::getHtmlbody)).toArray(CompletableFuture<?>[]::new);
         CompletableFuture.allOf(asyncs).join();
-        ArrayList<String> test = getUrlsFromPage(html);
-        return test;
+
+        return;
     }
 
+    public static HashSet<URI> visitedLinks = new HashSet<>();
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) throws Exception, IndexOutOfBoundsException {
 
-        String baseUrl = "http://localhost"; //args[0];
 
-        ArrayList<URI> urlList = new ArrayList<URI>();
+        startConnection(URI.create(baseUrl));
+        System.out.println(convertStringToFullURI(getUrlsFromPage(html)));
+        //ArrayList<URI> urls = convertStringToFullURI(startConnection(URI.create(baseUrl)));
 
-        urlList.add(URI.create("http://localhost"));
 
-        ArrayList<String> test = startConnection(urlList);
+        /*for (int i = 0; i < urls.size(); i++) {
 
-        ArrayList<URI> urls = new ArrayList<URI>();
-        for (int i = 0; i < test.size(); i++){
-            urls.add(URI.create(baseUrl + test.get(i)));
+            ArrayList<URI> test = convertStringToFullURI(startConnection(urls.get(i)));
 
-        }
-        for (int i = 0; i < urls.size(); i++){
-            System.out.println(urls.get(i));
-        }
+            visitedLinks.add(test.get(i));
+            System.out.println("Visited Links: "+visitedLinks);
 
-        ArrayList<String> again = new ArrayList<String>();
-        for (int i = 0; i < urls.size(); i++) {
-            again = startConnection(urls);
 
-        }
-        for (int i = 0; i < urls.size(); i++) {
+        }*/
 
-            System.out.println(again.get(i));
-        }
+
 
     }
 
